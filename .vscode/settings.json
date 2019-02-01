@@ -35,6 +35,9 @@
     "optional": "cpp",
     "sstream": "cpp",
     "tuple": "cpp",
-    "utility": "cpp"
+    "utility": "cpp",
+    "ctime": "cpp",
+    "iomanip": "cpp",
+    "numeric": "cpp"
   }
 }

@@ -8,7 +8,7 @@
       "type": "shell",
       "command": "g++",
       "args": [
-        "-g", "kd_tree.cpp", "nearest_neighbor.cpp", "-o", "test.exe"
+        "-g", "nearest_neighbor.cpp", "-o", "test.exe"
       ],
       "group": {
         "kind": "build",
