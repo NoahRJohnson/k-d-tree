@@ -11,7 +11,11 @@
 
 template <class T>
 void test_tree(KDTree<T> & tree, int k) {
-  // Test our functionality for a tree
+  /* Test our functionality for a tree
+  Args:
+    tree: pre-built k-d tree to search
+    k: dimensionality k of kd-tree
+  */
 
   // print out the structure of the tree
   std::cout << std::endl << "K-D Tree Pretty Print:" << std::endl;
@@ -68,10 +72,11 @@ void test_tree(KDTree<T> & tree, int k) {
 }
 
 
-int main()
-       {
+int main() {
+
   // Test wikipedia example
   // https://en.wikipedia.org/wiki/K-d_tree#Nearest_neighbour_search
+
   std::cout << "TESTING WIKIPEDIA EXAMPLE" << std::endl << std::endl;
   KDTree<int> wikipedia_tree {{2,3}, {5,4}, {9,6}, {4,7}, {8,1}, {7,2}};
 

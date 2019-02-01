@@ -345,7 +345,7 @@ class KDTree {
       nodeptr p;
     };
 
-    // typedefs for KDTree class
+    // typedefs for KDTree iterator
     typedef kdtree_iterator<false> iterator;
     typedef kdtree_iterator<true> const_iterator;
 
@@ -404,15 +404,16 @@ template <class T>
 Point<T> findNN(const KDTree<T> & tree, const Point<T> & ref_point) {
   /* find nearest neighbor
   wrapper for recursive search with pruning
-  copies the final point to return to user
+  copies the best point in the tree to return to user
 
   Args:
     tree: k-d tree to search
-    ref_point: the reference point for which we seek to find the nearest neighbor
+    ref_point: the reference point whose nearest neighbor we're searching for
 
   Returns:
     A copy of the Point object from the tree node which was the nearest neighbor
   */
+
   const KDTree<T> * tree_ptr = &tree;  // pointer to constant KDTree object
   const Point<T> * best_point = &tree.split_point;  // pointer to root Point
   T best_dist = std::numeric_limits<T>::max();  // set initial distance to max. - assumes distance between points is of type T
@@ -427,13 +428,13 @@ void findNN_(const KDTree<T> * tree_node, const Point<T> & ref_point,
              const Point<T> ** best_point, T * best_dist) {
   /* find nearest neighbor
   recursive search with pruning
-  returns point by reference
+  returns point by pointer
 
   Following algorithm from: https://en.wikipedia.org/wiki/K-d_tree_node#Nearest_neighbour_search
 
   Args:
-    tree_node: k-d tree_node to search
-    ref_point: the reference point for which we seek to find the nearest neighbor
+    tree_node: k-d tree to search
+    ref_point: the reference point whose nearest neighbor we're searching for
     best_point: memory to store the pointer to the best Point object in the tree
     best_dist: memory to store the current best (shortest) distance to the best point
 
