@@ -2,6 +2,7 @@
 #define _KDTREE_H_
 
 #include <algorithm>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -25,10 +26,9 @@ class Point {
       data_ = k_ ? new T[k_] : nullptr;
 
       // init data to all zeroes
-      for (int i=0; i<k_; ++i) {
-        data_[i] = 0;
-      }
+      std::memset(data_, 0, k_ * sizeof(T));
     }
+
     Point(std::initializer_list<T> input)  // copy from {...} initializer list
       : k_{input.size()},
         data_{k_ ? new T[k_] : nullptr}
@@ -220,7 +220,7 @@ class KDTree {
       }
     }
 
-    KDTree(std::initializer_list<Point<T>> points) { // constructor from {...} initializer list
+    KDTree(std::initializer_list<Point<T>> points) {  //: KDTree(points.begin(), points.end()) {} // constructor from {...} initializer list
 
       // copy data from possibly static list
       std::vector<Point<T>> points_vec = points;

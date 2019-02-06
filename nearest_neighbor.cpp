@@ -6,8 +6,8 @@
 
 #include "kd_tree.h"
 
-#define RANGE_BEGIN -10
-#define RANGE_END 10
+constexpr int RANGE_BEGIN = -10;
+constexpr int RANGE_END = 10;
 
 template <class T>
 void test_tree(KDTree<T> & tree, int k) {
