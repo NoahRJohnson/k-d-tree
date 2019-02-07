@@ -13,8 +13,13 @@
 template <class T>
 class Point {
   private:
+
+    /* !!!! Careful !!!!
+     * The order of these class members determines the initialization
+     * order within constructor member initialization lists */
     std::size_t k_;
     T* data_;
+
   public:
     Point(): k_{0}, data_{nullptr} {}  // default constructor (only needed for member variable init)
 
