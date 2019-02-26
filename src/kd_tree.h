@@ -28,7 +28,7 @@ class Point {
         throw std::length_error("Negative point dimensions");
 
       k_ = num_dims;
-      data_ = k_ ? new T[k_] : nullptr;
+      data_ = new T[k_];
 
       // init data to all zeroes
       std::memset(data_, 0, k_ * sizeof(T));
@@ -36,7 +36,7 @@ class Point {
 
     Point(std::initializer_list<T> input)  // copy from {...} initializer list
       : k_{input.size()},
-        data_{k_ ? new T[k_] : nullptr}
+        data_{new T[k_]}
     {
       // copy data_
       int i=0;
@@ -48,20 +48,20 @@ class Point {
 
     Point(std::vector<T> &input) // copy from vector
       : k_{input.size()},
-        data_{k_ ? new T[k_] : nullptr}
+        data_{new T[k_]}
     {
       // copy data_
-      for (int i=0; i < k_; ++i) {
+      for (std::size_t  i=0; i < k_; ++i) {
         data_[i] = input[i];
       }
     }
 
     Point(const Point<T>& rhs) // copy constructor
       : k_{rhs.k_},
-        data_{k_ ? new T[k_] : nullptr}
+        data_{new T[k_]}
     {
-      // copy data_
-      for (int i=0; i < k_; ++i) {
+      // deep copy data_
+      for (std::size_t i=0; i < k_; ++i) {
         data_[i] = rhs.data_[i];
       }
     }
@@ -75,34 +75,47 @@ class Point {
       rhs.k_ = 0;
     }
 
-    // https://stackoverflow.com/questions/3279543/what-is-the-copy-and-swap-idiom
-    friend void swap(Point<T>& first, Point<T>& second) // nothrow
+    Point& operator=(const Point<T>& rhs) // copy assignment
     {
-      // enable ADL
-      using std::swap;
+      if (k_ != rhs.k_) {  // Only re-size array if needed
+        delete [] data_;
 
-      // by swapping the members of two objects,
-      // the two objects are effectively swapped
-      swap(first.k_, second.k_);
-      swap(first.data_, second.data_);
+        data_ = nullptr;  // clear this...
+        k_ = 0u;          // ...and this in case the next line throws
+
+        data_ = new T[rhs.k_];
+        k_ = rhs.k_;
+      }
+
+      std::copy(rhs.data_, rhs.data_ + k_, data_);  // deep copy data
+      return *this;
     }
 
-    Point& operator=(Point<T> rhs) // copy assignment / move assignment
+    Point& operator=(Point<T>&& rhs) // move assignment
     {
-      swap(*this, rhs);
+      // Delete old resource
+      delete [] data_;
+
+      // Steal resources from rhs
+      data_ = rhs.data_;
+      k_ = rhs.k_;
+
+      // Reset rhs
+      rhs.data_ = nullptr;
+      rhs.k_ = 0u;
 
       return *this;
     }
 
     ~Point() {
-      delete[] data_;
+      delete [] data_;
     }
 
     T distance_to(Point<T> const& other) const {
       // squared euclidean distance
 
       T total = 0;
-      for (int i=0; i < k_; ++i) {
+      for (std::size_t  i=0; i < k_; ++i) {
         total += (data_[i] - other[i]) * (data_[i] - other[i]);
       }
       return total;
@@ -112,7 +125,7 @@ class Point {
       // returns the string representation of this point
       std::ostringstream buffer;
       buffer << '(';
-      for (int i=0; i < k_; ++i) {
+      for (std::size_t  i=0; i < k_; ++i) {
         buffer << data_[i] << ", ";
       }
       buffer.seekp(-2, std::ios_base::end);  // move write head back by 2 characters, to overwrite last comma
@@ -120,13 +133,13 @@ class Point {
       return buffer.str();
     }
 
-    T& operator[] (int i) {  // [] index non-const operator
+    T& operator[] (std::size_t i) {  // [] index non-const operator
       if (i < 0 || i >= k_)
         throw std::out_of_range("Point::operator[]");
       else
         return data_[i];
     }
-    T& operator[] (int i) const {  // [] index const operator
+    T& operator[] (std::size_t i) const {  // [] index const operator
       if (i < 0 || i >= k_)
         throw std::out_of_range("Point::operator[]");
       else
@@ -137,7 +150,7 @@ class Point {
         throw std::logic_error("Trying to compare two points of different size.");
 
       bool all_equal = true;
-      for (int i=0; i<k_; ++i)
+      for (std::size_t  i=0; i<k_; ++i)
         all_equal &= data_[i] == rhs.data_[i];
 
       return all_equal;
@@ -225,8 +238,9 @@ class KDTree {
       }
     }
 
-    KDTree(std::initializer_list<Point<T>> points) {  //: KDTree(points.begin(), points.end()) {} // constructor from {...} initializer list
-
+    KDTree(std::initializer_list<Point<T>> points)
+      /* : KDTree(points.begin(), points.end()) {} // constructor from {...} initializer list */
+    {
       // copy data from possibly static list
       std::vector<Point<T>> points_vec = points;
 
