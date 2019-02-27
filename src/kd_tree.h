@@ -1,7 +1,8 @@
-#ifndef _KDTREE_H_
-#define _KDTREE_H_
+#ifndef KD_TEMPLATE_SRC_KD_TREE_H_
+#define KD_TEMPLATE_SRC_KD_TREE_H_
 
 #include <algorithm>
+#include <cassert>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -9,6 +10,8 @@
 #include <numeric>
 #include <stdexcept>
 #include <vector>
+
+namespace kd {
 
 template <class T>
 class Point {
@@ -54,6 +57,16 @@ class Point {
       for (std::size_t  i=0; i < k_; ++i) {
         data_[i] = input[i];
       }
+    }
+
+    template <class Iterator>
+    Point(Iterator begin, Iterator end) // copy from iterator
+    {
+      k_ = std::distance(begin, end);
+      data_ = new T[k_];
+
+      // copy data_
+      std::copy(begin, end, data_);
     }
 
     Point(const Point<T>& rhs) // copy constructor
@@ -121,30 +134,17 @@ class Point {
       return total;
     }
 
-    std::string str() const {
-      // returns the string representation of this point
-      std::ostringstream buffer;
-      buffer << '(';
-      for (std::size_t  i=0; i < k_; ++i) {
-        buffer << data_[i] << ", ";
-      }
-      buffer.seekp(-2, std::ios_base::end);  // move write head back by 2 characters, to overwrite last comma
-      buffer << ')';
-      return buffer.str();
+
+    template <class U>
+    friend std::ostream& operator<< (std::ostream& stream, const Point<U>& point);
+
+    T& operator[] (std::size_t i) const {  // [] index operator -- const / non-const objects both use this
+      if (i < 0 || i >= k_)
+        throw std::out_of_range("Point::operator[]");
+      else
+        return data_[i];
     }
 
-    T& operator[] (std::size_t i) {  // [] index non-const operator
-      if (i < 0 || i >= k_)
-        throw std::out_of_range("Point::operator[]");
-      else
-        return data_[i];
-    }
-    T& operator[] (std::size_t i) const {  // [] index const operator
-      if (i < 0 || i >= k_)
-        throw std::out_of_range("Point::operator[]");
-      else
-        return data_[i];
-    }
     bool operator== (const Point<T> &rhs) const {  // == operator
       if (k_ != rhs.k_)
         throw std::logic_error("Trying to compare two points of different size.");
@@ -155,23 +155,43 @@ class Point {
 
       return all_equal;
     }
+
     bool operator!= (const Point<T> &b) const { return !(*this == b); }  // define != in terms of ==
 
-    int size() const {return k_;}
+    std::size_t size() const {return k_;}
 };
 
+template <class T>
+std::ostream& operator<< (std::ostream& stream, const Point<T>& point) {
+  // outputs the string representation of this point
+
+  // generate the string representation of this point
+  std::ostringstream buffer;
+  buffer << '(';
+  for (std::size_t  i=0; i < point.k_; ++i) {
+    buffer << point.data_[i] << ", ";
+  }
+  buffer.seekp(-2, std::ios_base::end);  // move write head back by 2 characters, to overwrite last comma
+  buffer << ')';
+
+  // write out string to stream
+  stream << buffer.str();
+
+  // Return stream reference to allow chaining
+  return stream;
+}
 
 template <class T>
-class KDTree {
+class Tree {
 
   /*
   A tree and a node are one and the same in this implementation.
   */
 
   private:
-    KDTree<T>* left_child_;
-    KDTree<T>* right_child_;
-    KDTree<T>* parent_;
+    Tree<T>* left_child_;
+    Tree<T>* right_child_;
+    Tree<T>* parent_;
     int split_axis_;
     int k_;
 
@@ -179,17 +199,44 @@ class KDTree {
 
     Point<T> split_point;
 
-    template <class Iterator>
-    KDTree(Iterator points_begin,
-           Iterator points_end,
-           int depth=0) {
-//    KDTree(typename std::vector<Point<T>>::iterator points_begin,
-//           typename std::vector<Point<T>>::iterator points_end,
-//           int depth=0) {
+    Tree() {}  // default constructor
+
+    template <class Container>
+    Tree(Container&& input, int depth=0) {
       /*
       Creates a balanced tree from points.
 
       Takes ownership of underlying data from vector.
+      Assumes all Points have the same dimensionality k.
+
+      Args:
+        input: Container of Points to move into tree
+        depth: depth or height of this tree node compared to the root
+      */
+      this->RecursiveInit(std::begin(input), std::end(input), depth);
+    }
+
+    Tree(std::initializer_list<Point<T>> points)
+    {
+      // initializer lists are read-only (iterators of type const Point<T>*)
+      // therefore we try to move over to another container, before we can
+      // move into the tree
+      // however, initializer_lists can be static, in which case the data will be copied not moved
+      // no helping that
+      std::vector<Point<T>> points_vec = std::move(points);
+      this->RecursiveInit(points_vec.begin(), points_vec.end(), 0);
+    }
+
+    template <class Iterator>
+    void RecursiveInit(Iterator points_begin,
+           Iterator points_end,
+           int depth=0) {
+      /*
+      Recursively creates a balanced tree from points.
+
+      Takes ownership of underlying data being iterated over, i.e.
+      constructing a tree moves all the points into that tree.
+
       Assumes all Points have the same dimensionality k.
 
       Args:
@@ -201,6 +248,17 @@ class KDTree {
       // Special case for root
       if (depth == 0) {
         parent_ = nullptr;
+
+        // Validate k
+        int one_common_k = -1;
+        for (auto it=points_begin, end=points_end; it != end; ++it) {
+          int k = it->size();
+          if (one_common_k == -1) {
+            one_common_k = k;
+          } else {
+            assert(k == one_common_k);
+          }
+        }
       }
 
       // Assume all points have the same dimensionality
@@ -213,7 +271,7 @@ class KDTree {
       // Sort points along this axis using a lambda comparator
       std::sort(points_begin, points_end, [axis](const Point<T>& a, const Point<T>& b) {
                 return a[axis] < b[axis];
-                });
+               });
 
       // select median point along this axis
       auto median_it = std::next(points_begin, std::distance(points_begin, points_end) / 2);
@@ -225,7 +283,8 @@ class KDTree {
       if (std::distance(points_begin, median_it) <= 0) {
         left_child_ = nullptr;
       } else {
-        left_child_ = new KDTree<T>(points_begin, median_it, depth + 1);
+        left_child_ = new Tree<T>();
+        left_child_->RecursiveInit(points_begin, median_it, depth + 1);
         left_child_->parent_ = this;
       }
 
@@ -233,50 +292,20 @@ class KDTree {
       if (std::distance(std::next(median_it), points_end) <= 0) {
         right_child_ = nullptr;
       } else {
-        right_child_ = new KDTree<T>(std::next(median_it), points_end, depth + 1);
+        right_child_ = new Tree<T>();
+        right_child_->RecursiveInit(std::next(median_it), points_end, depth + 1);
         right_child_->parent_ = this;
       }
     }
 
-    KDTree(std::initializer_list<Point<T>> points)
-      /* : KDTree(points.begin(), points.end()) {} // constructor from {...} initializer list */
-    {
-      // copy data from possibly static list
-      std::vector<Point<T>> points_vec = points;
-
-      // call main constructor, which will move the data from the vector into the tree
-      new (this) KDTree(points_vec.begin(), points_vec.end());
-    }
-
-
-    ~KDTree() {  // destructor
+    ~Tree() {  // destructor
       // recursively delete children
       delete left_child_;
       delete right_child_;
     }
 
-    void const prettyPrint(int indent=0) {
-      // https://stackoverflow.com/a/26699993
-      // Prints out tree in ASCII art sideways left-to-right
-
-      // Recurse on right child
-      if (right_child_) right_child_->prettyPrint(indent+4);
-
-      // Format
-      if (indent) {
-        std::cout << std::setw(indent) << ' ';
-      }
-      if (right_child_) std::cout << " /\n" << std::setw(indent) << ' ';
-
-      // Print split point
-      std::cout << split_point.str() << "\n ";
-
-      // Format and recurse on left child
-      if (left_child_) {
-        std::cout << std::setw(indent) << ' ' << " \\\n";
-        left_child_->prettyPrint(indent+4);
-      }
-    }
+    template <class U>
+    friend std::ostream& operator<< (std::ostream& stream, const Tree<U>& tree);
 
     // http://www.drdobbs.com/the-standard-librarian-defining-iterato/184401331?pgno=3
     template <bool flag, class IsTrue, class IsFalse>
@@ -293,19 +322,19 @@ class KDTree {
     };
 
     template <bool const_flag = false>
-    struct kdtree_iterator {
+    struct TreeIterator {
       // http://www.drdobbs.com/the-standard-librarian-defining-iterato/184401331
 
       typedef std::forward_iterator_tag iterator_category;  // category type
       typedef Point<T> value_type;  // the type of the object pointed to
       typedef std::ptrdiff_t difference_type;  // type for the distance between two elements of a sequence
-      typedef typename choose<const_flag, const Point<T>&, Point<T>&>::type reference;  // reference to the kdtree_iterator's value type (using compile-time ternary)
-      typedef typename choose<const_flag, const Point<T>*, Point<T>*>::type pointer;  // pointer to the kdtree_iterator's value type (using compile-time ternary)
-      typedef typename choose<const_flag, const KDTree<T>*, KDTree<T>*>::type nodeptr;
+      typedef typename choose<const_flag, const Point<T>&, Point<T>&>::type reference;  // reference to the TreeIterator's value type (using compile-time ternary)
+      typedef typename choose<const_flag, const Point<T>*, Point<T>*>::type pointer;  // pointer to the TreeIterator's value type (using compile-time ternary)
+      typedef typename choose<const_flag, const Tree<T>*, Tree<T>*>::type nodeptr;
 
-      kdtree_iterator(): p(nullptr) {} // empty constructor
+      TreeIterator(): p(nullptr) {} // empty constructor
 
-      kdtree_iterator(nodeptr node) { // constructor which takes a KD-Tree pointer to root
+      TreeIterator(nodeptr node) { // constructor which takes a KD-Tree pointer to root
 
         // Find the deepest, leftmost leaf node
         while (node->left_child_ || node->right_child_) {
@@ -320,13 +349,13 @@ class KDTree {
         p = node;
       }
 
-      kdtree_iterator(const kdtree_iterator<false>& other)  // copy constructor (if this kdtree_iterator is non-const) or converting constructor
+      TreeIterator(const TreeIterator<false>& other)  // copy constructor (if this TreeIterator is non-const) or converting constructor
         : p(other.p) { }
 
       reference operator* () const { return p->split_point; }  // * operator
       pointer operator -> () const { return &(p->split_point); }  // -> operator
 
-      kdtree_iterator& operator++ () {  // prefix ++ operator
+      TreeIterator& operator++ () {  // prefix ++ operator
 
         // go to the right child and find the leftmost child node
         if (p->right_child_) {
@@ -336,7 +365,7 @@ class KDTree {
           }
         }
         else {  // if there is no right child, go up until one exists (that isn't us) or we hit the null parent above root
-          KDTree<T>* parent = p->parent_;
+          Tree<T>* parent = p->parent_;
           while (parent && parent->right_child_ == p) {
             p = parent;
             parent = parent->parent();
@@ -345,50 +374,56 @@ class KDTree {
             p = parent;
           }
         }
-        return *this;  // return reference to this kdtree_iterator
+        return *this;  // return reference to this TreeIterator
       }
 
-      kdtree_iterator operator++ (int) { // postfix ++
-        kdtree_iterator tmp(*this);
+      TreeIterator operator++ (int) { // postfix ++
+        TreeIterator tmp(*this);
         ++(*this);
         return tmp;
       }
 
-      friend bool operator== (const kdtree_iterator& a, const kdtree_iterator& b) {
+      friend bool operator== (const TreeIterator& a, const TreeIterator& b) {
         return a.p == b.p;
       }
-      friend bool operator!= (const kdtree_iterator& a, const kdtree_iterator& b) {
+      friend bool operator!= (const TreeIterator& a, const TreeIterator& b) {
         return a.p != b.p;
       }
 
       nodeptr p;
     };
 
-    // typedefs for KDTree iterator
-    typedef kdtree_iterator<false> iterator;
-    typedef kdtree_iterator<true> const_iterator;
+    // typedefs for Tree iterator
+    typedef TreeIterator<false> iterator;
+    typedef TreeIterator<true> const_iterator;
 
-    iterator begin() {
+    iterator begin() {  // iterator from non-const Tree
       return iterator(this);
     }
-    const_iterator begin() const {
+    const_iterator cbegin() {  // const iterator from non-const Tree
       return const_iterator(this);
     }
-    iterator end() {
+    const_iterator begin() const {  // const iterator from const Tree
+      return const_iterator(this);
+    }
+    iterator end() {  // iterator from non-const Tree
       return iterator();
     }
-    const_iterator end() const {
+    const_iterator cend() {  // const iterator from non-const Tree
+      return const_iterator();
+    }
+    const_iterator end() const {  // const iterator from const Tree
       return const_iterator();
     }
 
     // Getters
-    KDTree<T>* left_child() const {
+    Tree<T>* left_child() const {
       return left_child_;
     }
-    KDTree<T>* right_child() const {
+    Tree<T>* right_child() const {
       return right_child_;
     }
-    KDTree<T>* parent() const {
+    Tree<T>* parent() const {
       return parent_;
     }
     int split_axis() const {
@@ -401,103 +436,39 @@ class KDTree {
 };
 
 template <class T>
-Point<T> findNN_brute_force(const KDTree<T> & tree, const Point<T> & ref_point) {
-  // Brute force search
+std::ostream& operator<< (std::ostream& stream, const Tree<T>& tree) {
+  // https://stackoverflow.com/a/26699993
+  // Prints out tree in ASCII art sideways left-to-right
 
-  const Point<T>* best_point;
-  T best_dist = std::numeric_limits<T>::max();
+  // Recurse on right child
+  if (tree.right_child_) stream << *tree.right_child_;
 
-  for (const auto& point : tree) {  // get references so the memory addresses stay valid
+  // Format
+  size_t depth = 0;
+  Tree<T>* parent = tree.parent_;
+  while (parent != nullptr) {
+    depth += 1;
+    parent = parent->parent_;
+  }
+  size_t indent = depth*4;
 
-    auto dist = point.distance_to(ref_point);
-    if (dist < best_dist) {
-      best_point = &point;
-      best_dist = dist;
-    }
+  stream << std::setw(indent) << ' ';
+
+  if (tree.right_child_) stream << " /\n" << std::setw(indent) << ' ';
+
+  // Print split point
+  stream << tree.split_point << "\n ";
+
+  // Format and recurse on left child
+  if (tree.left_child_) {
+    stream << std::setw(indent) << ' ' << " \\\n";
+    stream << *tree.left_child_;
   }
 
-  return Point<T>(*best_point);  // copy best point
+  // Return stream reference to allow chaining
+  return stream;
 }
 
-template <class T>
-Point<T> findNN(const KDTree<T> & tree, const Point<T> & ref_point) {
-  /* find nearest neighbor
-  wrapper for recursive search with pruning
-  copies the best point in the tree to return to user
+}  // ends namespace
 
-  Args:
-    tree: k-d tree to search
-    ref_point: the reference point whose nearest neighbor we're searching for
-
-  Returns:
-    A copy of the Point object from the tree node which was the nearest neighbor
-  */
-
-  const KDTree<T> * tree_ptr = &tree;  // pointer to constant KDTree object
-  const Point<T> * best_point = &tree.split_point;  // pointer to root Point
-  T best_dist = std::numeric_limits<T>::max();  // set initial distance to max. - assumes distance between points is of type T
-
-  findNN_(tree_ptr, ref_point, &best_point, &best_dist);  // recursively find best_point
-
-  return Point<T>(*best_point);  // create a copy of the Point object selected
-}
-
-template <class T>
-void findNN_(const KDTree<T> * tree_node, const Point<T> & ref_point,
-             const Point<T> ** best_point, T * best_dist) {
-  /* find nearest neighbor
-  recursive search with pruning
-  returns point by pointer
-
-  Following algorithm from: https://en.wikipedia.org/wiki/K-d_tree_node#Nearest_neighbour_search
-
-  Args:
-    tree_node: k-d tree to search
-    ref_point: the reference point whose nearest neighbor we're searching for
-    best_point: memory to store the pointer to the best Point object in the tree
-    best_dist: memory to store the current best (shortest) distance to the best point
-
-  Returns:
-    Nothing, but sets best_point to point to the Point object from the tree node which was the nearest
-    neighbor to ref_point
-  */
-
-  // get a reference to the Point data for this node
-  const Point<T> & local_point = tree_node->split_point;  // unmodifiable
-
-  // calculate the squared distance between this point and the reference point
-  // in overall coordinates
-  T local_dist = local_point.distance_to(ref_point);
-
-  // if this point is closer than the current best, make it the current best
-  if (local_dist < *best_dist) {
-    *best_point = &local_point;  // change pointer to point to this node's Point data
-    *best_dist = local_dist;  // copy local_dist into variable that best_dist points to
-  }
-
-  // Move down the tree recursively according to the split value
-  int split_dim = tree_node->split_axis();
-  auto d = ref_point[split_dim] - local_point[split_dim];
-
-  // Determine which direction (right or left) to go
-  KDTree<T>* closer_child = (d > 0) ? tree_node->right_child() : tree_node->left_child();
-  KDTree<T>* farther_child = (d > 0) ? tree_node->left_child() : tree_node->right_child();
-
-  // Recurse
-  if (closer_child)
-    findNN_(closer_child, ref_point, best_point, best_dist);
-
-  // Now check if we need to recurse down the other branch too
-  // This would be the case if the hypersphere around the ref point with radius best_dist
-  //   could include points on the other side of the hyperplane
-  if (d*d < *best_dist) {  // if it could, move down the other branch
-
-    if (farther_child)
-      findNN_(farther_child, ref_point, best_point, best_dist);
-  }
-  else {  // if it can't, ignore the other branch (this is the pruning optimization)
-    return;
-  }
-}
-
-#endif
+#endif  // KD_TEMPLATE_SRC_KD_TREE_H_
