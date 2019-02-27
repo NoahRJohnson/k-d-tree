@@ -3,183 +3,10 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstring>
-#include <iomanip>
-#include <iostream>
-#include <limits>
-#include <numeric>
-#include <stdexcept>
-#include <vector>
+
+#include "point.h"
 
 namespace kd {
-
-template <class T>
-class Point {
-  private:
-
-    /* !!!! Careful !!!!
-     * The order of these class members determines the initialization
-     * order within constructor member initialization lists */
-    std::size_t k_;
-    T* data_;
-
-  public:
-    Point(): k_{0}, data_{nullptr} {}  // default constructor (only needed for member variable init)
-
-    explicit Point(std::size_t num_dims) {  // no conversion from int
-      if (num_dims < 0)
-        throw std::length_error("Negative point dimensions");
-
-      k_ = num_dims;
-      data_ = new T[k_];
-
-      // init data to all zeroes
-      std::memset(data_, 0, k_ * sizeof(T));
-    }
-
-    Point(std::initializer_list<T> input)  // copy from {...} initializer list
-      : k_{input.size()},
-        data_{new T[k_]}
-    {
-      // copy data_
-      int i=0;
-      auto it = input.begin(), end = input.end();
-      while (it != end) {
-        data_[i++] = *it++;  // cursed
-      }
-    }
-
-    Point(std::vector<T> &input) // copy from vector
-      : k_{input.size()},
-        data_{new T[k_]}
-    {
-      // copy data_
-      for (std::size_t  i=0; i < k_; ++i) {
-        data_[i] = input[i];
-      }
-    }
-
-    template <class Iterator>
-    Point(Iterator begin, Iterator end) // copy from iterator
-    {
-      k_ = std::distance(begin, end);
-      data_ = new T[k_];
-
-      // copy data_
-      std::copy(begin, end, data_);
-    }
-
-    Point(const Point<T>& rhs) // copy constructor
-      : k_{rhs.k_},
-        data_{new T[k_]}
-    {
-      // deep copy data_
-      for (std::size_t i=0; i < k_; ++i) {
-        data_[i] = rhs.data_[i];
-      }
-    }
-
-    Point(Point<T>&& rhs) // move constructor
-      : k_{rhs.k_},
-        data_{rhs.data_}  // steal rhs resources
-    {
-      // mangle rhs
-      rhs.data_ = nullptr;
-      rhs.k_ = 0;
-    }
-
-    Point& operator=(const Point<T>& rhs) // copy assignment
-    {
-      if (k_ != rhs.k_) {  // Only re-size array if needed
-        delete [] data_;
-
-        data_ = nullptr;  // clear this...
-        k_ = 0u;          // ...and this in case the next line throws
-
-        data_ = new T[rhs.k_];
-        k_ = rhs.k_;
-      }
-
-      std::copy(rhs.data_, rhs.data_ + k_, data_);  // deep copy data
-      return *this;
-    }
-
-    Point& operator=(Point<T>&& rhs) // move assignment
-    {
-      // Delete old resource
-      delete [] data_;
-
-      // Steal resources from rhs
-      data_ = rhs.data_;
-      k_ = rhs.k_;
-
-      // Reset rhs
-      rhs.data_ = nullptr;
-      rhs.k_ = 0u;
-
-      return *this;
-    }
-
-    ~Point() {
-      delete [] data_;
-    }
-
-    T distance_to(Point<T> const& other) const {
-      // squared euclidean distance
-
-      T total = 0;
-      for (std::size_t  i=0; i < k_; ++i) {
-        total += (data_[i] - other[i]) * (data_[i] - other[i]);
-      }
-      return total;
-    }
-
-
-    template <class U>
-    friend std::ostream& operator<< (std::ostream& stream, const Point<U>& point);
-
-    T& operator[] (std::size_t i) const {  // [] index operator -- const / non-const objects both use this
-      if (i < 0 || i >= k_)
-        throw std::out_of_range("Point::operator[]");
-      else
-        return data_[i];
-    }
-
-    bool operator== (const Point<T> &rhs) const {  // == operator
-      if (k_ != rhs.k_)
-        throw std::logic_error("Trying to compare two points of different size.");
-
-      bool all_equal = true;
-      for (std::size_t  i=0; i<k_; ++i)
-        all_equal &= data_[i] == rhs.data_[i];
-
-      return all_equal;
-    }
-
-    bool operator!= (const Point<T> &b) const { return !(*this == b); }  // define != in terms of ==
-
-    std::size_t size() const {return k_;}
-};
-
-template <class T>
-std::ostream& operator<< (std::ostream& stream, const Point<T>& point) {
-  // outputs the string representation of this point
-
-  // generate the string representation of this point
-  std::ostringstream buffer;
-  buffer << '(';
-  for (std::size_t  i=0; i < point.k_; ++i) {
-    buffer << point.data_[i] << ", ";
-  }
-  buffer.seekp(-2, std::ios_base::end);  // move write head back by 2 characters, to overwrite last comma
-  buffer << ')';
-
-  // write out string to stream
-  stream << buffer.str();
-
-  // Return stream reference to allow chaining
-  return stream;
-}
 
 template <class T>
 class Tree {
@@ -193,7 +20,7 @@ class Tree {
     Tree<T>* right_child_;
     Tree<T>* parent_;
     int split_axis_;
-    int k_;
+    int dims_;
 
   public:
 
@@ -249,23 +76,23 @@ class Tree {
       if (depth == 0) {
         parent_ = nullptr;
 
-        // Validate k
-        int one_common_k = -1;
+        // Validate that all the points have the same size
+        int one_common_size = -1;
         for (auto it=points_begin, end=points_end; it != end; ++it) {
           int k = it->size();
-          if (one_common_k == -1) {
-            one_common_k = k;
+          if (one_common_size == -1) {
+            one_common_size = k;
           } else {
-            assert(k == one_common_k);
+            assert(k == one_common_size);
           }
         }
       }
 
       // Assume all points have the same dimensionality
-      k_ = points_begin->size();  // size of first Point object
+      dims_ = points_begin->size();  // size of first Point object
 
       // Cycle through axes to split on
-      int axis = depth % k_;  // temp variable for lambda function
+      int axis = depth % dims_;  // temp variable for lambda function
       split_axis_ = axis;
 
       // Sort points along this axis using a lambda comparator
@@ -429,8 +256,8 @@ class Tree {
     int split_axis() const {
       return split_axis_;
     }
-    int k() const {
-      return k_;
+    int dims() const {
+      return dims_;
     }
 
 };
@@ -469,6 +296,6 @@ std::ostream& operator<< (std::ostream& stream, const Tree<T>& tree) {
   return stream;
 }
 
-}  // ends namespace
+}  // ends namespace kd
 
 #endif  // KD_TEMPLATE_SRC_KD_TREE_H_
