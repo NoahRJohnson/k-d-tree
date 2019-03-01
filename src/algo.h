@@ -2,6 +2,7 @@
 #define KD_TEMPLATE_SRC_ALGO_H_
 
 #include "kd_tree.h"
+#include "point.h"
 
 namespace kd {
 
@@ -14,7 +15,7 @@ Point<T> findNN_brute_force(const Tree<T> & tree, const Point<T> & ref_point) {
 
   for (const auto& point : tree) {  // get references so the memory addresses stay valid
 
-    auto dist = point.distance_to(ref_point);
+    auto dist = Point<T>::distance(point, ref_point);
     if (dist < best_dist) {
       best_point = &point;
       best_dist = dist;
@@ -72,7 +73,7 @@ void findNN_(const Tree<T> * tree_node, const Point<T> & ref_point,
 
   // calculate the squared distance between this point and the reference point
   // in overall coordinates
-  T local_dist = local_point.distance_to(ref_point);
+  T local_dist = Point<T>::distance(local_point, ref_point);
 
   // if this point is closer than the current best, make it the current best
   if (local_dist < *best_dist) {

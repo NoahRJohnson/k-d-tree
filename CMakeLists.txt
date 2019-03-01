@@ -16,5 +16,7 @@ project (kd-tree)
 
 #set(SOURCES src)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
+
 # build the executable
 add_executable(test src/nearest_neighbor.cpp src/kd_tree.h)

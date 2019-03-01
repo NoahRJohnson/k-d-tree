@@ -118,16 +118,15 @@ class Point {
       delete [] data_;
     }
 
-    T distance_to(Point<T> const& other) const {
+    static T distance(Point<T> const& a, Point<T> const& b) {
       // squared euclidean distance
 
       T total = 0;
-      for (std::size_t  i=0; i < dims_; ++i) {
-        total += (data_[i] - other[i]) * (data_[i] - other[i]);
+      for (std::size_t  i=0; i < b.dims_; ++i) {
+        total += (a[i] - b[i]) * (a[i] - b[i]);
       }
       return total;
     }
-
 
     template <class U>
     friend std::ostream& operator<< (std::ostream& stream, const Point<U>& point);
@@ -145,7 +144,7 @@ class Point {
 
       bool all_equal = true;
       for (std::size_t  i=0; i<dims_; ++i)
-        all_equal &= data_[i] == rhs.data_[i];
+        all_equal = all_equal && (data_[i] == rhs.data_[i]);
 
       return all_equal;
     }

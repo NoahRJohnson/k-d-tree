@@ -11,7 +11,7 @@ constexpr int RANGE_BEGIN = -10;
 constexpr int RANGE_END = 10;
 
 template <class T>
-void test_tree(kd::Tree<T> & tree, int k) {
+void test_tree(kd::Tree<T> * tree, int k) {
   /* Test our functionality for a tree
   Args:
     tree: pre-built k-d tree to search
@@ -19,17 +19,17 @@ void test_tree(kd::Tree<T> & tree, int k) {
   */
 
   // print out the structure of the tree
-  std::cout << std::endl << "K-D Tree Pretty Print:" << std::endl << tree;
+  std::cout << std::endl << "K-D Tree Pretty Print:" << std::endl << *tree;
 
   // test iterator
   std::cout << std::endl << "Testing iterator:" << std::endl;
-  for (auto it=tree.begin(); it != tree.end(); ++it) {
+  for (auto it=tree->begin(); it != tree->end(); ++it) {
     std::cout << *it << std::endl;
   }
 
   // test range-for
   std::cout << std::endl << "Testing range-for iteration:" << std::endl;
-  for (const auto& point : tree) {
+  for (const auto& point : *tree) {
     std::cout << point << std::endl;
   }
 
@@ -51,7 +51,7 @@ void test_tree(kd::Tree<T> & tree, int k) {
   auto start = std::chrono::high_resolution_clock::now();
 
   // Call the brute-force function
-  kd::Point<int> NN = findNN_brute_force(tree, ref_point);
+  kd::Point<int> NN = findNN_brute_force(*tree, ref_point);
 
   // Get end time
   auto stop = std::chrono::high_resolution_clock::now();
@@ -64,7 +64,7 @@ void test_tree(kd::Tree<T> & tree, int k) {
 
   // Repeat all of that for the optimized search which prunes branches
   start = std::chrono::high_resolution_clock::now();
-  NN = findNN(tree, ref_point);
+  NN = findNN(*tree, ref_point);
   stop = std::chrono::high_resolution_clock::now();
   duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
@@ -80,7 +80,7 @@ int main() {
   std::cout << "TESTING WIKIPEDIA EXAMPLE" << std::endl << std::endl;
   kd::Tree<int> wikipedia_tree {{2,3}, {5,4}, {9,6}, {4,7}, {8,1}, {7,2}};
 
-  test_tree(wikipedia_tree, 2);
+  test_tree(&wikipedia_tree, 2);
 
   //
   // Test user-defined tree
@@ -118,7 +118,7 @@ int main() {
   // destroys vector, as tree moves that memory into itself
   kd::Tree<int> user_tree(points);
 
-  test_tree(user_tree, k);
+  test_tree(&user_tree, k);
 
   return 0;
 }
